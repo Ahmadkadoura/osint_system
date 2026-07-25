@@ -1,0 +1,21 @@
+# نموذج الـ NER (كبير الحجم - لا يجب رفعه لـ GitHub)
+arabic_ner_model/
+
+# بايثون
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# فرونت إند (Node/Vite)
+frontend/node_modules/
+
+# ملفات مخرجات تجريبية/تصحيح
+out*.txt
+ddg_test.html
+ddg_py.html
+
+# بيئة تطوير
+.vscode/
