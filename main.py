@@ -66,6 +66,39 @@ class IdentityEnginePipeline:
             confidence=1.0,
         )
 
+    @staticmethod
+    def _pick_latin_fallback_candidates(first_latin: list, last_latin: list, max_candidates: int = 3) -> list:
+        """
+        يبني عدة مرشحين لاتينيين محتملين بترتيب طبيعي (الاسم الأول ثم اسم العائلة)
+        مباشرة من نتائج الـ transliterator - بدل الاعتماد على مرشح واحد فقط، لأن اختلاف
+        بسيط بالتهجئة (ibrahem/ibrahim) قد يفوّت حساباً حقيقياً مفهرساً بتهجئة معينة فقط.
+        بدل ranked_variants[0] الذي قد يكون النص العربي نفسه أو صيغة معكوسة (لأنها تتساوى
+        بالسكور مع الصيغ اللاتينية الصحيحة).
+        """
+        if not first_latin:
+            return []
+
+        firsts = [f[0] for f in first_latin[:2]]
+        if not last_latin:
+            return firsts[:max_candidates]
+
+        # نفضّل صيغ اسم العائلة التي فيها فراغ ("al omari") لأنها أقرب للإملاء الطبيعي
+        # المستخدم بالبروفايلات الحقيقية، ثم البقية
+        spaced = [l[0] for l in last_latin if " " in l[0]]
+        plain = [l[0] for l in last_latin if " " not in l[0]]
+        lasts = (spaced + plain)[:2]
+
+        candidates = []
+        for first in firsts:
+            for last in lasts:
+                name = f"{first} {last}"
+                if name not in candidates:
+                    candidates.append(name)
+                if len(candidates) >= max_candidates:
+                    return candidates
+
+        return candidates
+
     def process_text(self, raw_text: str, birth_year: Optional[int] = None) -> str:
         try:
             raw_text = raw_text.strip()
@@ -134,8 +167,10 @@ class IdentityEnginePipeline:
                     time.sleep(random.uniform(0.6, 1))
 
             # --- بحث حقيقي عبر محرك بحث خارجي (site:) بدل الاعتماد فقط على تخمين المعرفات ---
-            print(f"[*] جاري البحث الحقيقي عن: {parsed_entity.full_name} ...")
-            site_search_results = self.site_search.search_all(parsed_entity.full_name)
+            # نبحث بالاسم الأصلي + أفضل نقحرة لاتينية مقترحة (fallback تلقائي لو الحساب مفهرس بالإنجليزية فقط)
+            latin_fallback_candidates = self._pick_latin_fallback_candidates(first_latin, last_latin)
+            print(f"[*] جاري البحث الحقيقي عن: {parsed_entity.full_name} (بدائل لاتينية: {latin_fallback_candidates}) ...")
+            site_search_results = self.site_search.search_all(parsed_entity.full_name, latin_names=latin_fallback_candidates)
 
             final_payload = PayloadBuilder.build_success_payload(parsed_entity, ranked_variants)
             final_payload["identity"]["osint_live_targets"] = osint_results

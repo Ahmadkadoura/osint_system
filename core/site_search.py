@@ -93,13 +93,56 @@ class SiteSearchEngine:
 
         return results
 
-    def search_all(self, name: str, max_results_per_platform: int = 3) -> Dict[str, List[Dict[str, Any]]]:
-        """يبحث عن الاسم على كل المنصات المدعومة، مع تأخير بسيط بينها لتفادي حجب DuckDuckGo."""
+    def _dedupe(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        seen = set()
+        deduped = []
+        for item in results:
+            url = item.get("profile_url")
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            deduped.append(item)
+        return deduped
+
+    def search_platform_with_fallback(
+        self, primary_name: str, fallback_names: List[str], platform: str, max_results: int = 3
+    ) -> List[Dict[str, Any]]:
+        """
+        يبحث أولاً بالاسم الأساسي (عادة العربي)، ولو ما رجع نتائج على هذه المنصة، يجرّب
+        عدة أسماء بديلة (نقحرات لاتينية مختلفة) بالترتيب حتى يجد نتيجة أو تنتهي القائمة -
+        بعض الحسابات مفهرسة بتهجئة لاتينية معينة فقط (مثل ibrahim وليس ibrahem) ولا تظهر
+        أبداً لو جرّبنا صيغة واحدة بس.
+        """
+        results = self.search_platform(primary_name, platform, max_results)
+        if results:
+            return self._dedupe(results)
+
+        tried = {primary_name.strip().lower()}
+        for fallback_name in fallback_names or []:
+            key = fallback_name.strip().lower()
+            if not fallback_name or key in tried:
+                continue
+            tried.add(key)
+
+            time.sleep(1)
+            results = self.search_platform(fallback_name, platform, max_results)
+            if results:
+                break
+
+        return self._dedupe(results)
+
+    def search_all(
+        self, name: str, latin_names: List[str] = None, max_results_per_platform: int = 3
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        يبحث عن الاسم (+ عدة نقحرات لاتينية مقترحة كـ fallback تلقائي) على كل المنصات
+        المدعومة، مع تأخير بسيط بينها لتفادي حجب DuckDuckGo.
+        """
         results = {}
         platforms = list(self.PLATFORM_DOMAINS.keys())
 
         for idx, platform in enumerate(platforms):
-            found = self.search_platform(name, platform, max_results_per_platform)
+            found = self.search_platform_with_fallback(name, latin_names, platform, max_results_per_platform)
             if found:
                 results[platform] = found
             if idx < len(platforms) - 1:
