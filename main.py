@@ -53,7 +53,9 @@ class IdentityEnginePipeline:
             return None
 
         first_name = words[0]
-        last_name = words[-1] if len(words) > 1 else words[0]
+        # لو الاسم كلمة واحدة فقط، نترك last_name فاضياً بدل تكرار الاسم الأول -
+        # تكراره كان يولّد معرفات فاسدة مثل "cristiano_cristiano"
+        last_name = words[-1] if len(words) > 1 else ""
         middle_names = words[1:-1] if len(words) > 2 else []
 
         return ParsedEntity(

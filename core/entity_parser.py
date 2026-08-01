@@ -96,7 +96,9 @@ class ArabicEntityParser:
         
         # توزيع حقول الاسم الإجبارية والاختيارية
         first_name = name_tokens[0] if len(name_tokens) > 0 else ""
-        last_name = name_tokens[-1] if len(name_tokens) > 1 else first_name
+        # لو الاسم كلمة واحدة فقط، نترك last_name فاضياً بدل تكرار الاسم الأول -
+        # تكراره كان يولّد معرفات فاسدة مثل "cristiano_cristiano"
+        last_name = name_tokens[-1] if len(name_tokens) > 1 else ""
         middle_names = name_tokens[1:-1] if len(name_tokens) > 2 else []
         
         # 3. اكتشاف المهنة من النص الأصلي أو القاموس
